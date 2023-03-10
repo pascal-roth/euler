@@ -26,5 +26,6 @@ RUN pip install tqdm
 RUN pip install trimesh
 RUN pip install warp-lang
 RUN pip install wandb
+RUN pip install networkx
 
 CMD cd /app && ./docker_run.sh

@@ -13,18 +13,12 @@ REMOTE_DIR="/cluster/project/rsl/rothpa/SemNav"
 TEMP_DIR="/cluster/project/rsl/rothpa/temp"
 # The directory on the euler cluster where to place the files shared amongst processing nodes.
 SHARED_DIR="/cluster/project/rsl/rothpa/shared"
-# The LOCAL directory where the trainings data is stored --> will be synced to the euler cluster
-DATA_DIR="/home/pascal/SemNav/env/data_pc"
 # The script in the legged_gym/scripts/ directory to run.
-COMMAND="EXPERIMENT_DIRECTORY=/app/shared python /app/shared/imperative_planning_learning/multi_env.py"
+COMMAND="EXPERIMENT_DIRECTORY=/app/shared python /app/shared/viplanner/multi_env.py"
 # SSH access (user@domain). You should setup SSH access via private/public keys for this user!
 SSH="rothpa@euler.ethz.ch"
 
 ### Don't modify anything below ###
-
-# sync data
-echo "Sync Data ..."
-rsync -azPv $DATA_DIR $SSH:$SHARED_DIR
 
 # create run scripts and docker container
 
@@ -47,7 +41,7 @@ cat <<END_OF_SCRIPT > euler_scripts/run.sh
 #!/bin/bash
 
 env2lmod
-module load cuda cudnn nccl
+module load cuda cudnn nccl eth_proxy
 
 cat <<EOT > job.sh
 #!/bin/bash
