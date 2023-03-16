@@ -1,4 +1,11 @@
-FROM nvidia/cuda:11.2.0-base
+# Pull nivida cuda image
+#   base: Includes the CUDA runtime (cudart)
+#   runtime: Builds on the base and includes the CUDA math libraries, and NCCL. A runtime image that also includes cuDNN is available.
+#   devel: Builds on the runtime and includes headers, development tools for building CUDA images. These images are particularly useful for multi-stage builds.
+# if intended to compile CUDA code, use the devel image and make sure that the CUDA version matches the version used to compile pytorch (i.e. cu116 for nvidia/cuda:11.6.0)
+
+# FROM nvidia/cuda:11.6.0-base
+FROM nvidia/cuda:11.6.0-devel-ubuntu20.04
 
 RUN ln -fs /usr/share/zoneinfo/Europe/Zurich /etc/localtime
 RUN ln -s /usr/local/cuda/compat/libcuda.so.1 /usr/lib/x86_64-linux-gnu/libcuda.so.1
@@ -18,14 +25,22 @@ ENV PATH="/app/venv/bin:$PATH"
 COPY docker_run.sh /app/
 
 # Install dependencies
-RUN pip install torch==1.13.0 torchvision==0.14.0 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu116
-RUN pip install opencv-python
-RUN pip install pypose==0.2.1
-RUN pip install open3d
-RUN pip install tqdm
-RUN pip install trimesh
-RUN pip install warp-lang
-RUN pip install wandb
-RUN pip install networkx
+RUN pip install --verbose --no-cache-dir torch==1.13.0 torchvision==0.14.0 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu116
+RUN pip install --verbose --no-cache-dir opencv-python==4.5.4.60
+RUN pip install --verbose --no-cache-dir pypose==0.2.1
+RUN pip install --verbose --no-cache-dir open3d
+RUN pip install --verbose --no-cache-dir tqdm
+RUN pip install --verbose --no-cache-dir trimesh
+RUN pip install --verbose --no-cache-dir warp-lang
+RUN pip install --verbose --no-cache-dir wandb
+RUN pip install --verbose --no-cache-dir networkx
+
+# install third party code with cuda compiled code (as example detectron2 and mask2former)
+RUN pip install --verbose --no-cache-dir 'git+https://github.com/facebookresearch/detectron2.git'
+
+COPY third_party/mask2former /app/third_party/mask2former
+RUN pip install --verbose --no-cache-dir -r /app/third_party/mask2former/requirements.txt
+RUN chmod 777 '/usr/local/lib/python3.8/dist-packages'
+RUN python /app/third_party/mask2former/mask2former/modeling/pixel_decoder/ops/setup.py build install
 
 CMD cd /app && ./docker_run.sh
