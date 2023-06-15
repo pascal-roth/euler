@@ -86,8 +86,8 @@ scp euler_scripts/* "$SSH:$RUN_DIR/"
 
 echo "Building Docker Container ..."
 cd "$DIR"
-NOTE: setting DOCKER_BUILDKIT=0 as bugfix because otherwise the gpu is not found during the build process even if default_runtime is nvidia 
-described here: https://stackoverflow.com/questions/59691207/docker-build-with-nvidia-runtime (notice at the end of the issue)
+# NOTE: setting DOCKER_BUILDKIT=0 as bugfix because otherwise the gpu is not found during the build process even if default_runtime is nvidia 
+# described here: https://stackoverflow.com/questions/59691207/docker-build-with-nvidia-runtime (notice at the end of the issue)
 if $DOCKER_USE_CACHE 
 then
     DOCKER_BUILDKIT=0 docker build ./ -t $DOCKER_NAME
