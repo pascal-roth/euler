@@ -1,43 +1,60 @@
 #!/bin/bash
 
-NOW=$(date +"%Y-%m-%dT%H:%M")
+# command to be executed when starting a job (can be changed later without modifying the docker image)
+COMMAND="EXPERIMENT_DIRECTORY=/app/shared ls /app/shared && python /app/shared/viplanner/viplanner/multi_env.py"  # multi_env.py"  # m2f_overfit.py"
 
-### Configuration Options ###
+# define resource directories
+CODE_DIR="/cluster/scratch/rothpa/viplanner/viplanner"
+DATA_DIR="/cluster/scratch/rothpa/viplanner/data"
+MODEL_DIR="/cluster/scratch/rothpa/viplanner/models"
 
-# A name for this experiment to distinguish it in log outputs etc.
-EXPERIMENT_NAME="imp_train-$NOW"
-# The directory on the euler cluster where to place run-files. Anything inside this directory will be deleted when
-# running this script!
-REMOTE_DIR="/cluster/project/rsl/rothpa/SemNav"
-# The directory on the euler cluster where to place temporary files.
-TEMP_DIR="/cluster/project/rsl/rothpa/temp"
-# The directory on the euler cluster where to place the files shared amongst processing nodes.
-SHARED_DIR="/cluster/project/rsl/rothpa/shared"
-# The script in the legged_gym/scripts/ directory to run.
-COMMAND="EXPERIMENT_DIRECTORY=/app/shared python /app/shared/viplanner/multi_env.py"
+# define directory where save the run scripts and log data
+RUN_NAME="vip_train"
+RUN_DIR="/cluster/scratch/rothpa/viplanner/runs"
+LOG_DIR="/cluster/scratch/rothpa/viplanner/logs"
+
+# The directory on the euler cluster where to docker container and related temporary files.
+DOCKER_DIR="/cluster/scratch/rothpa/viplanner/docker"   # directory where docker container is stored
+DOCKER_NAME="run_viplanner"                             # docker name
+DOCKER_USE_CACHE=true                                   # use cache while building the docker container
+DOCKER_BUILD_SINGULARITY_LOCAL=true                     # build singularity either locally (recommended) or on the cluster (only if resources issue on local machine)
+
 # SSH access (user@domain). You should setup SSH access via private/public keys for this user!
 SSH="rothpa@euler.ethz.ch"
 
-### Don't modify anything below ###
+### Create docker, singularity image and run script ###
 
 # create run scripts and docker container
 
 DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-echo "Setting Up Files ..."
-
 cd "$DIR"
 
-cat <<EOT > docker_run.sh
-#!/bin/bash
-echo "Running $COMMAND"
-$COMMAND
-EOT
-chmod a+x docker_run.sh
-
 mkdir "euler_scripts/"
-SINGULARITY_COMMAND="singularity run --writable-tmpfs --nv --bind $SHARED_DIR:/app/shared, $TEMP_DIR/job"
-cat <<END_OF_SCRIPT > euler_scripts/run.sh
+cat <<EOT > euler_scripts/${RUN_NAME}_command.sh
+#!/bin/bash
+echo "Tar current code version and copy code ..."
+mkdir -p \$TMPDIR/shared/$(basename "$CODE_DIR")
+tar -C $CODE_DIR -cf $CODE_DIR.tar .
+tar -xf $CODE_DIR.tar  -C \$TMPDIR/shared/$(basename "$CODE_DIR")
+
+echo "Unpack Data ..."
+mkdir -p \$TMPDIR/shared/data
+for file in \$(ls $DATA_DIR/*.tar)
+do
+  echo "Unpacking \$file"
+  tar -xf \$file  -C \$TMPDIR/shared/data
+done
+
+echo "Copy Docker Container ..."
+tar -xf $DOCKER_DIR/$DOCKER_NAME.tar  -C \$TMPDIR
+
+echo "Run Docker Container ..."
+singularity exec --bind \$TMPDIR/shared:/app/shared --bind $MODEL_DIR:/app/shared/models --bind $LOG_DIR:/app/shared/logs --nv --writable --containall \$TMPDIR/$DOCKER_NAME.sif bash -c "$COMMAND"
+EOT
+
+chmod a+x euler_scripts/${RUN_NAME}_command.sh
+
+cat <<END_OF_SCRIPT > euler_scripts/${RUN_NAME}_job.sh
 #!/bin/bash
 
 env2lmod
@@ -53,77 +70,72 @@ cat <<EOT > job.sh
 #SBATCH --mem-per-cpu=6144
 #SBATCH --mail-type=END
 #SBATCH --mail-user=roth.pascal@outlook.de
-#SBATCH --job-name=$EXPERIMENT_NAME
+#SBATCH --job-name="imp_train-$(date +"%Y-%m-%dT%H:%M")"
 
-echo "Running \"$SINGULARITY_COMMAND\""
-eval "$SINGULARITY_COMMAND"
+sh $RUN_DIR/${RUN_NAME}_command.sh
 EOT
 
 sbatch < job.sh
 rm job.sh
 END_OF_SCRIPT
-chmod a+x "euler_scripts/run.sh"
-
-cat <<EOT > euler_scripts/wait_and_run.sh
-#!/bin/bash
-
-echo -n "Waiting for deployment to finish ..."
-while [ ! -f $TEMP_DIR/.euler-deployment-done-$EXPERIMENT_NAME.txt ]
-do
-    sleep 1
-    echo -n "."
-done
-echo ""
-
-sleep \$((RANDOM % 60))
-
-./run.sh
-EOT
-chmod a+x "euler_scripts/wait_and_run.sh"
+chmod a+x "euler_scripts/${RUN_NAME}_job.sh"
 
 echo "Uploading Scripts ..."
-
 cd "$DIR"
-ssh -T "$SSH" << EOL
-    mkdir -p $REMOTE_DIR/
-    rm -rf $REMOTE_DIR/*
-EOL
-scp euler_scripts/* "$SSH:$REMOTE_DIR/"
+scp euler_scripts/* "$SSH:$RUN_DIR/"
 
 echo "Building Docker Container ..."
-
 cd "$DIR"
+NOTE: setting DOCKER_BUILDKIT=0 as bugfix because otherwise the gpu is not found during the build process even if default_runtime is nvidia 
+described here: https://stackoverflow.com/questions/59691207/docker-build-with-nvidia-runtime (notice at the end of the issue)
+if $DOCKER_USE_CACHE 
+then
+    DOCKER_BUILDKIT=0 docker build ./ -t $DOCKER_NAME
+else
+    DOCKER_BUILDKIT=0 docker build ./ -t $DOCKER_NAME --no-cache
+fi
 
-# NOTE: setting DOCKER_BUILDKIT=0 as bugfix because otherwise the gpu is not found during the build process even if default_runtime is nvidia 
-# described here: https://stackoverflow.com/questions/59691207/docker-build-with-nvidia-runtime (notice at the end of the issue)
-DOCKER_BUILDKIT=0 docker build ./ -t job --no-cache
+if $DOCKER_BUILD_SINGULARITY_LOCAL
+then
+    echo "Create Singularity LOCAL ..."
+    SINGULARITY_NOHTTPS=1 singularity build --sandbox $DOCKER_NAME.sif docker-daemon://$DOCKER_NAME:latest
+
+    sudo tar -cvf $DOCKER_NAME.tar $DOCKER_NAME.sif
+    scp $DOCKER_NAME.tar $SSH:$DOCKER_DIR
+
+    echo "Clean-up ..."
+    rm $DOCKER_NAME.tar
+    rm $DOCKER_NAME.sif
+    rm -rf euler_scripts/
+else
 
 echo "Uploading Docker Tarball ..."
-
 cd "$DIR"
 ssh -T "$SSH" << EOL
-    mkdir -p $TEMP_DIR/app/
-    cd $TEMP_DIR/
-    rm -rf job.tar job
+    mkdir -p $DOCKER_DIR/app/
+    cd $DOCKER_DIR/
+    rm -rf $DOCKER_NAME.tar $DOCKER_NAME
 EOL
-docker save job -o job.tar
-scp job.tar "$SSH:$TEMP_DIR/"
+
+docker save $DOCKER_NAME -o $DOCKER_NAME.tar
+scp $DOCKER_NAME.tar "$SSH:$DOCKER_DIR/"
 
 echo "Creating Singularity Image on Remote Host ..."
 
 ssh -T "$SSH" << EOL
-    cd $TEMP_DIR/
-    singularity build job docker-archive://job.tar
-    touch .euler-deployment-done-$EXPERIMENT_NAME.txt
+    cd $DOCKER_DIR/
+    singularity build $DOCKER_NAME docker-archive://$DOCKER_NAME.tar
 EOL
 
 echo "Cleaning Up ..."
 
-rm job.tar
+rm $DOCKER_NAME.tar
 rm -rf euler_scripts/
-rm docker_run.sh
+rm ${RUN_NAME}_command.sh
 
 ssh -T "$SSH" << EOL
-    rm $TEMP_DIR/job.tar
+    rm $DOCKER_DIR/$DOCKER_NAME.tar
     apptainer cache clean -f
 EOL
+
+fi

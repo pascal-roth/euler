@@ -22,26 +22,24 @@ WORKDIR /app
 RUN python3.8 -m venv /app/venv/
 ENV PATH="/app/venv/bin:$PATH"
 
-COPY docker_run.sh /app/
+# COPY docker_run.sh /app/
 
-# Install dependencies
-RUN pip install --verbose --no-cache-dir torch==1.13.0 torchvision==0.14.0 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu117
-RUN pip install --verbose --no-cache-dir opencv-python==4.5.4.60
-RUN pip install --verbose --no-cache-dir pypose==0.2.1
-RUN pip install --verbose --no-cache-dir open3d
-RUN pip install --verbose --no-cache-dir tqdm
-RUN pip install --verbose --no-cache-dir trimesh
-RUN pip install --verbose --no-cache-dir warp-lang
-RUN pip install --verbose --no-cache-dir wandb
-RUN pip install --verbose --no-cache-dir networkx
-RUN pip install --verbose --no-cache-dir 'git+https://github.com/facebookresearch/detectron2.git'
+# install VIPlanner in editable mode
+COPY third_party/viplanner /app/shared/viplanner
 
 # install third party code with cuda compiled code (as example detectron2 and mask2former)
-COPY third_party/mask2former /app/third_party/mask2former
-RUN pip install --verbose --no-cache-dir -r /app/third_party/mask2former/requirements.txt
+# COPY third_party/viplanner/viplanner/third_party/mask2former /app/third_party/mask2former
+RUN pip install --verbose --no-cache-dir -r /app/shared/viplanner/viplanner/third_party/mask2former/requirements.txt
 RUN chmod 777 '/usr/local/lib/python3.8/dist-packages'
 ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$LD_LIBRARY_PATH
 ENV FORCE_CUDA="1"
-RUN python /app/third_party/mask2former/mask2former/modeling/pixel_decoder/ops/setup.py build install
+RUN python /app/shared/viplanner/viplanner/third_party/mask2former/mask2former/modeling/pixel_decoder/ops/setup.py build install
 
-CMD cd /app && ./docker_run.sh
+# further dependencies
+RUN pip install --verbose --no-cache-dir 'git+https://github.com/facebookresearch/detectron2.git'
+RUN pip install --verbose --no-cache-dir trimesh
+
+# install viplanner
+RUN pip install --upgrade pip
+RUN pip install --verbose --no-cache-dir setuptools==66.0.0
+RUN pip install --verbose --no-cache-dir -e /app/shared/viplanner/.[sim]
