@@ -22,8 +22,6 @@ WORKDIR /app
 RUN python3.8 -m venv /app/venv/
 ENV PATH="/app/venv/bin:$PATH"
 
-# COPY docker_run.sh /app/
-
 # install VIPlanner in editable mode
 COPY third_party/viplanner /app/shared/viplanner
 

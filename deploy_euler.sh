@@ -67,7 +67,7 @@ cat <<EOT > job.sh
 #SBATCH --cpus-per-task=16
 #SBATCH --gpus=rtx_3090:1
 #SBATCH --time=23:00:00
-#SBATCH --mem-per-cpu=6144
+#SBATCH --mem-per-cpu=4096
 #SBATCH --mail-type=END
 #SBATCH --mail-user=roth.pascal@outlook.de
 #SBATCH --job-name="imp_train-$(date +"%Y-%m-%dT%H:%M")"
