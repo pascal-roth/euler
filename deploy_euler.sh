@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # command to be executed when starting a job (can be changed later without modifying the docker image)
-COMMAND="EXPERIMENT_DIRECTORY=/app/shared ls /app/shared && python /app/shared/viplanner/viplanner/multi_env.py"  # multi_env.py"  # m2f_overfit.py"
+COMMAND="export EXPERIMENT_DIRECTORY=/app/shared && python /app/shared/viplanner/viplanner/multi_env.py"  # multi_env.py"  # m2f_overfit.py"
 
 # define resource directories
 CODE_DIR="/cluster/scratch/rothpa/viplanner/viplanner"
