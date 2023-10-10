@@ -4,14 +4,14 @@
 COMMAND="export EXPERIMENT_DIRECTORY=/app/shared && python /app/shared/viplanner/viplanner/multi_env.py"  # multi_env.py"  # m2f_overfit.py"
 
 # define resource directories
-CODE_DIR="/cluster/scratch/rothpa/viplanner/viplanner"
+CODE_DIR="/cluster/project/rsl/rothpa/vip_project/viplanner"
 DATA_DIR="/cluster/scratch/rothpa/viplanner/data"
-MODEL_DIR="/cluster/scratch/rothpa/viplanner/models"
+MODEL_DIR="/cluster/project/rsl/rothpa/vip_project/models"
 
 # define directory where save the run scripts and log data
 RUN_NAME="vip_train"
 RUN_DIR="/cluster/scratch/rothpa/viplanner/runs"
-LOG_DIR="/cluster/scratch/rothpa/viplanner/logs"
+LOG_DIR="/cluster/project/rsl/rothpa/vip_project/logs"
 
 # The directory on the euler cluster where to docker container and related temporary files.
 DOCKER_DIR="/cluster/scratch/rothpa/viplanner/docker"   # directory where docker container is stored
